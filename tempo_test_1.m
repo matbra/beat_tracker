@@ -4,8 +4,8 @@ dir_signals = fullfile(dirup(2), 'impulse_noise', 'signals');
 % dir_signals = 'H:\testsignale\mirex\beattrack_train_2006\train';
 
 % filename_input = 'modell_1.wav';
-% filename_input = 'roboter_1.wav';
-filename_input = 'patsy.wav';
+filename_input = 'roboter_1.wav';
+% filename_input = 'patsy.wav';
 
 % filename_input = 'train8.wav';
 
@@ -44,7 +44,7 @@ T_block_acf_analysis = 4; % s
 L_block_acf_analysis = floor(T_block_acf_analysis * fs);
 
 bpm_min = 40;
-bpm_max = 300;
+bpm_max = 600;
 T_delay_max = 1/bpm_min * 60;
 T_delay_min = 1/bpm_max * 60;
 L_delay_max = floor(T_delay_max * fs);
@@ -159,9 +159,9 @@ for p = 1 : N_blocks
                 % plot the correlation with the comb
                 figure(3);
                 
-                plot(acf_cyclic);
+                plot((0:L_comb-1)/fs, acf_cyclic);
                 
-                line([1 L_comb], repmat(th_beat_phase, 1, 2), 'color', 'red');
+                line([0 L_comb-1]/fs, repmat(th_beat_phase, 1, 2), 'color', 'red');
             end
             
             
