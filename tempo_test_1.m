@@ -1,15 +1,24 @@
 clear, close all, clc
 
 dir_signals = fullfile(dirup(2), 'impulse_noise', 'signals');
+% dir_signals = 'H:\testsignale\mirex\beattrack_train_2006\train';
 
-filename_input = 'modell_1.wav';
+% filename_input = 'modell_1.wav';
+filename_input = 'roboter_1.wav';
+% filename_input = 'patsy.wav';
+
+% filename_input = 'train8.wav';
+
 L_block = 1024*8;
 L_feed = L_block/2;
 L_DFT = L_block;
 vec_window = sqrt(hann(L_block, 'periodic'));
 
+b_plot = true;
+
 % load the input signal
 [x, fs] = wavread(fullfile(dir_signals, filename_input));
+x = x(:,1);
 L_x = length(x);
 
 % create the time vector
@@ -35,7 +44,7 @@ T_block_acf_analysis = 4; % s
 L_block_acf_analysis = floor(T_block_acf_analysis * fs);
 
 bpm_min = 40;
-bpm_max = 300;
+bpm_max = 600;
 T_delay_max = 1/bpm_min * 60;
 T_delay_min = 1/bpm_max * 60;
 L_delay_max = floor(T_delay_max * fs);
@@ -71,7 +80,7 @@ for p = 1 : N_blocks
     % determine threshold
     th = mean(acf) + 2 * std(acf);
     
-    if true
+    if b_plot
         figure(2)
         
         plot(vec_xAxis_bpm, acf);
@@ -97,13 +106,16 @@ for p = 1 : N_blocks
         vec_delay(b) = idx_max + L_delay_min + st_regions_above_threshold(b).idx_start-2;
     end
     
+    st_coarse_tempo_information(end+1).b_valid = false;
+    
     if N_regions_above_threshold > 0
         % there seems to be some kind of tempo
         
         % store information in a struct
-        st_coarse_tempo_information(end+1).idx_start = idx(1);
+        st_coarse_tempo_information(end).idx_start = idx(1);
         st_coarse_tempo_information(end).idx_end = idx(end);
         st_coarse_tempo_information(end).vec_delay = vec_delay;
+        st_coarse_tempo_information(end).b_valid = true;
         
         % try to find the "phase" of the tempo grid
         % (acf only yields tempo, not where the measures start...)
@@ -140,16 +152,16 @@ for p = 1 : N_blocks
             
             % find the first maximum to determine the offset for this tempo
             % candidate
-            th_beat_phase = mean(acf_cyclic) + 3 * std(acf_cyclic);
+            th_beat_phase = mean(acf_cyclic) + 1 * std(acf_cyclic);
             vec_b_above_threshold = acf_cyclic >= th_beat_phase;
             
-            if true
+            if b_plot
                 % plot the correlation with the comb
                 figure(3);
                 
-                plot(acf_cyclic);
+                plot((0:L_comb-1)/fs, acf_cyclic);
                 
-                line([1 L_comb], repmat(th_beat_phase, 1, 2), 'color', 'red');
+                line([0 L_comb-1]/fs, repmat(th_beat_phase, 1, 2), 'color', 'red');
             end
             
             
@@ -173,12 +185,12 @@ for p = 1 : N_blocks
         % now we have collected all possible tempo candidates and their
         % respective beat offsets
         
-        T_peak_search_region = 1e-2;
+        T_peak_search_region = 5e-2;
         L_peak_search_region = floor(T_peak_search_region * fs);
         L_peak_search_region_half = floor(L_peak_search_region / 2);
         L_peak_search_region = L_peak_search_region_half * 2 + 1; % is odd!
         
-        if true
+        if b_plot
             % plot the areas where peaks are searched
             
             figure(4);
@@ -186,16 +198,27 @@ for p = 1 : N_blocks
             plot(x_phat_p); hold on;
             
             % plot the projected peak positions
-            idx_peak = st_coarse_tempo_information(p).offset(2); % watch out, only second offset!
+            idx_peak = st_coarse_tempo_information(p).offset(1); % watch out, only second offset!
             while idx_peak < length(x_phat_p)
                 line([idx_peak idx_peak], [0 1], 'color', 'green');
                 
+                idx_start_search = idx_peak-L_peak_search_region_half;
+                
+                if idx_start_search < 1
+                    idx_start_search = 1;
+                end
+                
+                idx_end_search = idx_peak + L_peak_search_region_half;
+                if idx_end_search > L_block_acf_analysis
+                    idx_end_search = L_block_acf_analysis;
+                end
+                
                 % draw the search area
-                plot((idx_peak-L_peak_search_region_half : idx_peak + L_peak_search_region_half), ...
-                    x_phat_p(idx_peak-L_peak_search_region_half : idx_peak + L_peak_search_region_half), ...
+                plot((idx_start_search : idx_end_search), ...
+                    x_phat_p(idx_start_search : idx_end_search), ...
                     'color', 'red');
                 
-                idx_peak = idx_peak + st_coarse_tempo_information(p).vec_delay(2); % watch out, only second tempo!
+                idx_peak = idx_peak + st_coarse_tempo_information(p).vec_delay(1); % watch out, only second tempo!
             end
             
             hold off;
@@ -205,20 +228,31 @@ for p = 1 : N_blocks
         % increase the time resolution of the transient position by finding
         % the maximum of the hilbert envelope in the predicted vicinity of
         % the beats...
-        idx_peak = st_coarse_tempo_information(p).offset(2); % watch out, only second offset!
+        idx_peak = st_coarse_tempo_information(p).offset(1); % watch out, only second offset!
             while idx_peak < length(x_phat_p)
                 line([idx_peak idx_peak], [0 1], 'color', 'green');
                 
-                cur_vec_x_vicinity = x_phat_p(idx_peak-L_peak_search_region_half : idx_peak + L_peak_search_region_half);
+                idx_start_search = idx_peak-L_peak_search_region_half;
+                
+                 if idx_start_search < 1
+                    idx_start_search = 1;
+                 end
+                
+                 idx_end_search = idx_peak + L_peak_search_region_half;
+                if idx_end_search > L_block_acf_analysis
+                    idx_end_search = L_block_acf_analysis;
+                end
+                
+                cur_vec_x_vicinity = x_phat_p(idx_start_search : idx_end_search);
                 
                 temp = hilbert(cur_vec_x_vicinity);
                 cur_vec_x_vicinity_envelope = temp .* conj(temp);
                 
                 [~, idx_max] = max(cur_vec_x_vicinity_envelope);
                 
-                vec_beats(end+1) = idx(1) + idx_peak-L_peak_search_region_half + idx_max - 1;
+                vec_beats(end+1) = idx(1) + idx_start_search + idx_max - 1;
                 
-                idx_peak = idx_peak + st_coarse_tempo_information(p).vec_delay(2); % watch out, only second tempo!
+                idx_peak = idx_peak + st_coarse_tempo_information(p).vec_delay(1); % watch out, only second tempo!
             end
         
         
@@ -229,3 +263,18 @@ for p = 1 : N_blocks
     
     
 end
+
+%% plot the estimated beats
+figure(11);
+plot(vec_t, x, 'black');
+hold on;
+for a = 1 : length(vec_beats)
+    line(repmat(vec_t(vec_beats(a)), 2, 1), [-1 1], 'color', 'red');
+end
+hold off;
+
+% plot the tempo curve
+figure(12);
+plot(60./(diff(vec_beats)/fs));
+
+y = bleepify(x, vec_beats, fs);
