@@ -21,7 +21,7 @@ T_peak_search_region = 5e-2; % size of the area around detected peaks where tran
 T_tooth = 1e-3; % s - width of the offset-estimation tooths (of the comb vector)
 vec_window = sqrt(hann(L_block, 'periodic'));
 
-b_plot = false;
+b_plot = true;
 
 % load the input signal
 % [x, fs] = wavread(fullfile(dir_signals, filename_input));
@@ -60,16 +60,29 @@ L_delay_min = floor(T_delay_min * fs);
 
 vec_xAxis_bpm = 60./((L_delay_min+1 : L_delay_max)'/fs);
 
-N_blocks = floor(L_x_phat / L_block_acf_analysis);
+N_full_blocks = floor(L_x_phat / L_block_acf_analysis);
+N_blocks = ceil(L_x_phat / L_block_acf_analysis);
+
+% determine block sizes
+% (last block is probably smaller)
+vec_L_block = [L_block_acf_analysis * ones(N_full_blocks,1); L_x_phat-N_full_blocks * L_block_acf_analysis];
 
 st_coarse_tempo_information = [];
 % st_refined_tempo_information = [];
 vec_beats = [];
 
+idx_start = 1;
+
 for p = 1 : N_blocks
-    idx = (p-1) * L_block_acf_analysis+1 : p * L_block_acf_analysis;
+    %idx = (p-1) * vec_L_block(p)+1 : p * vec_L_block(p);
+    idx = idx_start : idx_start + vec_L_block(p) - 1;
+    idx_start = idx_start + vec_L_block(p);
     x_phat_p = x_phat(idx);
     
+    % skip all calculation of rhythmness for the last block
+    % -> assume that the last tempo still holds...
+    
+    if p < N_blocks
     %     acf = ifft(fft(abs(x_phat_p)).^2);
     acf = xcorr(abs(x_phat_p), abs(x_phat_p), L_delay_max, 'unbiased');
     
@@ -113,6 +126,7 @@ for p = 1 : N_blocks
         [~, idx_max] = max(acf(st_regions_above_threshold(b).idx_start:st_regions_above_threshold(b).idx_end));
         vec_delay(b) = idx_max + L_delay_min + st_regions_above_threshold(b).idx_start-2;
     end
+    end
     
     st_coarse_tempo_information(end+1).b_valid = false;
     
@@ -144,7 +158,7 @@ for p = 1 : N_blocks
             
             % the number of teeth that fit into the selected acf analysis
             % block length
-            N_teeth = floor(L_block_acf_analysis / (L_tooth + L_zeros));
+            N_teeth = floor(vec_L_block(p) / (L_tooth + L_zeros));
             L_comb = N_teeth * (L_tooth + L_zeros);
             
             % generate the comb
@@ -246,8 +260,8 @@ for p = 1 : N_blocks
                  end
                 
                  idx_end_search = idx_peak + L_peak_search_region_half;
-                if idx_end_search > L_block_acf_analysis
-                    idx_end_search = L_block_acf_analysis;
+                if idx_end_search > vec_L_block(p)
+                    idx_end_search = vec_L_block(p);
                 end
                 
                 cur_vec_x_vicinity = x_phat_p(idx_start_search : idx_end_search);
@@ -296,4 +310,4 @@ end
 
 % some global information
 st_beat_detection_result.st_global_info.idx_start_analyse = 1;
-st_beat_detection_result.st_global_info.idx_end_analyse = N_blocks * L_block_acf_analysis;
+st_beat_detection_result.st_global_info.idx_end_analyse = sum(vec_L_block);%N_blocks * L_block_acf_analysis;
