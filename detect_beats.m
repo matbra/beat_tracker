@@ -21,7 +21,13 @@ T_peak_search_region = 5e-2; % size of the area around detected peaks where tran
 T_tooth = 1e-3; % s - width of the offset-estimation tooths (of the comb vector)
 vec_window = sqrt(hann(L_block, 'periodic'));
 
-b_plot = true;
+L_tooth = floor(T_tooth * fs);
+            L_tooth_half = floor(L_tooth/2);
+            L_tooth = L_tooth_half * 2; % is now even
+            
+            vec_tooth = hann(L_tooth, 'symmetric');
+
+b_plot = false;
 
 % load the input signal
 % [x, fs] = wavread(fullfile(dir_signals, filename_input));
@@ -66,6 +72,10 @@ N_blocks = ceil(L_x_phat / L_block_acf_analysis);
 % determine block sizes
 % (last block is probably smaller)
 vec_L_block = [L_block_acf_analysis * ones(N_full_blocks,1); L_x_phat-N_full_blocks * L_block_acf_analysis];
+
+if vec_L_block(end) < L_delay_max
+    N_blocks = N_blocks - 1;
+end
 
 st_coarse_tempo_information = [];
 % st_refined_tempo_information = [];
@@ -148,11 +158,7 @@ for p = 1 : N_blocks
             cur_delay = vec_delay(b);
             
 %             T_tooth = 1e-3; % s
-            L_tooth = floor(T_tooth * fs);
-            L_tooth_half = floor(L_tooth/2);
-            L_tooth = L_tooth_half * 2; % is now even
             
-            vec_tooth = hann(L_tooth, 'symmetric');
             
             L_zeros = cur_delay - 2 * L_tooth_half;
             
