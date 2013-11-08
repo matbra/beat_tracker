@@ -27,7 +27,8 @@ L_tooth = floor(T_tooth * fs);
             
             vec_tooth = hann(L_tooth, 'symmetric');
 
-b_plot = false;
+b_plot = true;
+b_publish = true;
 
 % load the input signal
 % [x, fs] = wavread(fullfile(dir_signals, filename_input));
@@ -114,14 +115,25 @@ for p = 1 : N_blocks
     if b_plot
         figure(2)
         
-        plot(vec_xAxis_bpm, acf);
+        if b_publish && p == 3
+            tight_subplot_3c(1, 1, 0, 0);
+        end
+            
+        
+        plot(vec_xAxis_bpm, acf, 'k');
         %         plot(acf);
         
         % draw the threshold
         line([vec_xAxis_bpm(1), vec_xAxis_bpm(end)], [th th], 'color', 'red');
         
-        xlabel('bpm');
-        ylabel('acf');
+        xlabel('beats per minute');
+        ylabel('ACF');
+        
+        if b_publish && p == 3
+            ylim([0.1 0.3]);
+            matlabfrag('beatDetection_acf');
+        end
+        
     end
     
     % find peaks above the threshold
@@ -237,8 +249,8 @@ for p = 1 : N_blocks
                 end
                 
                 idx_end_search = idx_peak + L_peak_search_region_half;
-                if idx_end_search > L_block_acf_analysis
-                    idx_end_search = L_block_acf_analysis;
+                if idx_end_search > vec_L_block(p)%L_block_acf_analysis
+                    idx_end_search = vec_L_block(p);
                 end
                 
                 % draw the search area
@@ -294,10 +306,24 @@ end
 if b_plot
 %% plot the estimated beats
 figure(11);
+if b_publish
+    global b_beamer;
+    b_beamer = true;
+    tight_subplot_3c(1, 1, 0, 0);
+end
 plot(vec_t, x, 'black');
 hold on;
 for a = 1 : length(vec_beats)
-    line(repmat(vec_t(vec_beats(a)), 2, 1), [-1 1], 'color', 'red');
+    line(repmat(vec_t(vec_beats(a)), 2, 1), [-1 1], 'color', 'red', 'linewidth', 0.5);
+end
+
+if b_publish
+ylim([-0.45 0.45]);
+xlim([5 15]);
+xlabel('time in s');
+ylabel('linear amplitude');
+legend({'time domain signal', 'beats'})
+matlabfrag('beatDetection_result');
 end
 hold off;
 
