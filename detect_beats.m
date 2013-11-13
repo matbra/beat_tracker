@@ -28,7 +28,7 @@ L_tooth = floor(T_tooth * fs);
             vec_tooth = hann(L_tooth, 'symmetric');
 
 b_plot = true;
-b_publish = true;
+b_publish = false;
 
 % load the input signal
 % [x, fs] = wavread(fullfile(dir_signals, filename_input));
@@ -136,6 +136,22 @@ for p = 1 : N_blocks
         
     end
     
+    if true
+        % new method
+        % (hopefully better finds all peaks - even with lower height)
+        th = mean(acf) + 1 * std(acf);
+        [~, idx_peaks] = findpeaks(acf, 'MINPEAKHEIGHT', th);
+        idx_peaks = idx_peaks +  L_delay_min;
+        
+        vec_delay = idx_peaks;
+        
+        N_regions_above_threshold = length(vec_delay);
+    else
+        % old method
+        % (had a problem with too low peak heights)
+        % (could maybe have been solved by just lowering the threshold but
+        % anyway...)
+    
     % find peaks above the threshold
     vec_b_above_threshold = acf >= th;
     
@@ -147,6 +163,7 @@ for p = 1 : N_blocks
     for b = 1 : N_regions_above_threshold
         [~, idx_max] = max(acf(st_regions_above_threshold(b).idx_start:st_regions_above_threshold(b).idx_end));
         vec_delay(b) = idx_max + L_delay_min + st_regions_above_threshold(b).idx_start-2;
+    end
     end
     end
     
