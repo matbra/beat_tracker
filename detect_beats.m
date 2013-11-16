@@ -1,4 +1,6 @@
-function st_beat_detection_result = detect_beats(x, fs);
+function st_beat_detection_result = detect_beats(x, fs)
+
+st_beat_detection_result.st_beat_info.sample_pos = [];
 
 % dir_signals = fullfile(dirup(2), 'impulse_noise', 'signals');
 % dir_signals = 'H:\testsignale\mirex\beattrack_train_2006\train';
@@ -149,7 +151,7 @@ for p = 1 : N_blocks
             
         end
         
-        if true
+        if false
             % new method
             % (hopefully better finds all peaks - even with lower height)
             th = mean(acf) + 0.5 * std(acf);
@@ -173,6 +175,7 @@ for p = 1 : N_blocks
             N_regions_above_threshold = length(st_regions_above_threshold);
             
             % find maxima within each region
+            vec_delay = [];
             for b = 1 : N_regions_above_threshold
                 [~, idx_max] = max(acf(st_regions_above_threshold(b).idx_start:st_regions_above_threshold(b).idx_end));
                 vec_delay(b) = idx_max + L_delay_min + st_regions_above_threshold(b).idx_start-2;
@@ -191,7 +194,7 @@ for p = 1 : N_blocks
     
     tempo_davies_p = 60 ./diff(idx_beats_davies_p/fs);
     
-    tempo_davies_p_mean = mean(tempo_davies_p);
+    tempo_davies_p_mean = median(tempo_davies_p);
     
     % generate the apriori tempo pdf
     cur_bpm_candidate = tempo_davies_p_mean;
@@ -206,6 +209,7 @@ for p = 1 : N_blocks
     vec_pdf_bpm = normalize_pdf(vec_pdf_bpm, vec_bpm);
     
     % determine the probability of all tempo candidates
+    vec_p_bpm = [];
     for a = 1 : N_regions_above_threshold
         cur_tempo_candidate_from_delay = 60/(vec_delay(a) /fs);
         vec_p_bpm(a) = interp1(vec_bpm, vec_pdf_bpm, cur_tempo_candidate_from_delay, 'linear');
@@ -222,7 +226,7 @@ for p = 1 : N_blocks
     
     st_coarse_tempo_information(end+1).b_valid = false;
     
-    if N_regions_above_threshold > 0
+    if N_regions_above_threshold > 0 && any(vec_b_probable_tempo)
         % there seems to be some kind of tempo
         
         % store information in a struct
@@ -308,7 +312,7 @@ for p = 1 : N_blocks
         L_peak_search_region_half = floor(L_peak_search_region / 2);
         L_peak_search_region = L_peak_search_region_half * 2 + 1; % is odd!
         
-        if b_plot
+        if b_plot && any(vec_b_probable_tempo)
             % plot the areas where peaks are searched
             
             figure(4);
@@ -342,6 +346,8 @@ for p = 1 : N_blocks
             hold off;
             
         end
+        
+        
         
         % increase the time resolution of the transient position by finding
         % the maximum of the hilbert envelope in the predicted vicinity of
