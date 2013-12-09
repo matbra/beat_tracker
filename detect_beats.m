@@ -23,6 +23,7 @@ T_peak_search_region = 5e-2; % size of the area around detected peaks where tran
 T_tooth = 1e-3; % s - width of the offset-estimation tooths (of the comb vector)
 vec_window = sqrt(hann(L_block, 'periodic'));
 detectorsignal_mode = 'product_1';
+b_prior_tempo_estimation = false;
 
 L_tooth = floor(T_tooth * fs);
 L_tooth_half = floor(L_tooth/2);
@@ -111,6 +112,7 @@ vec_beats = [];
 
 idx_start = 1;
 
+if b_prior_tempo_estimation
 % do davies beat tracking
 try
     idx_beats_davies = detect_beats_davies_standard(x, fs);
@@ -118,6 +120,9 @@ try
 catch
     % error. signal was probably too short...
     idx_beats_davies = [];
+    tempo_davies = [];
+end
+else idx_beats_davies = [];
     tempo_davies = [];
 end
 
@@ -217,6 +222,7 @@ for p = 1 : N_blocks
     % now use the davies beat tracker information to find most probable
     % tempo (delay) candidate
     
+    if b_prior_tempo_estimation
     % determine which beats (of davies output) are within the current block
     vec_b_beats_davies_within_cur_block = idx_beats_davies >= idx(1) & ...
         idx_beats_davies <= idx(end);
@@ -228,7 +234,8 @@ for p = 1 : N_blocks
     tempo_davies_p_mean = median(tempo_davies_p);
     
     % generate the apriori tempo pdf
-    cur_bpm_candidate = tempo_davies_p_mean;
+    cur_bpm_candidate = tempo_davies_p_mean/2;
+%     P_base = 0.002;
     vec_pdf_bpm = zeros(bpm_max-bpm_min+1, 1);
     vec_bpm = (bpm_min:bpm_max)';
     while cur_bpm_candidate < bpm_max
@@ -247,13 +254,17 @@ for p = 1 : N_blocks
     end
     
     % threshold the tempo candidates
-    th_p_bpm = 0.008;
+    th_p_bpm = 0.006;
     vec_b_probable_tempo = vec_p_bpm > th_p_bpm;
     
     % only allow the fastest tempo
-    temp_idx_fastest = find(vec_b_probable_tempo, 1, 'first');
+    temp_idx_fastest = find(vec_b_probable_tempo, 1, 'first'); % TODO: shouldn't this be 'last' ??
     vec_b_probable_tempo = false(N_regions_above_threshold, 1);
     vec_b_probable_tempo(temp_idx_fastest) = true;
+    else
+        temp_idx_fastest = 1;%N_regions_above_threshold; % TODO: is it correct to pick the last one?
+        vec_b_probable_tempo = true(N_regions_above_threshold, 1);
+    end
     
     st_coarse_tempo_information(end+1).b_valid = false;
     
