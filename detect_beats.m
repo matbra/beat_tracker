@@ -22,6 +22,7 @@ T_smooth = 1e-2; % time constant of the (FIR) smoothing filter used for acf smoo
 T_peak_search_region = 5e-2; % size of the area around detected peaks where transients are searched in the time domain signal
 T_tooth = 1e-3; % s - width of the offset-estimation tooths (of the comb vector)
 vec_window = sqrt(hann(L_block, 'periodic'));
+detectorsignal_mode = 'product_1';
 
 L_tooth = floor(T_tooth * fs);
 L_tooth_half = floor(L_tooth/2);
@@ -41,9 +42,33 @@ L_x = length(x);
 vec_t = (0:L_x-1)' / fs;
 
 % phase transform
-[mat_X, vec_f, vec_t_block] = spectrogram(x, vec_window, (L_block-L_feed), L_DFT, fs);
-mat_X = ones(size(mat_X)) .* exp(j * angle(mat_X)); % set all magnitudes to one
-x_phat = ispectrogram(mat_X);
+% [mat_X, vec_f, vec_t_block] = spectrogram(x, vec_window, (L_block-L_feed), L_DFT, fs);
+% mat_X = ones(size(mat_X)) .* exp(j * angle(mat_X)); % set all magnitudes to one
+% x_phat = ispectrogram(mat_X);
+
+% TODO: rename variables (other that x_phat) because it's no longer "only"
+% PHAT.
+
+switch(detectorsignal_mode)
+            case 'phat'
+                [Data,FreqVek,TimeVek] = spectrogram(x,vec_window,(L_block-L_feed),L_DFT,fs,'yaxis');
+            Data_log = 20*log10(abs(Data)+eps);
+        
+            % this is the phat-transform:
+            x_phat = ispecgram((ones(size(Data_log)).*exp(j*angle(Data))), L_DFT,fs);
+            case 'ar'
+                x_phat = ar_error(x, 16, 1024);
+            case 'product_1'
+                [Data,FreqVek,TimeVek] = spectrogram(x,vec_window,(L_block-L_feed),L_DFT,fs,'yaxis');
+            Data_log = 20*log10(abs(Data)+eps);
+        
+            % this is the phat-transform:
+            x_phat = ispecgram((ones(size(Data_log)).*exp(j*angle(Data))), L_DFT,fs);
+            
+            ar_err_sig = ar_error(x, 16, 1024);
+            
+            x_phat = x_phat.* ar_err_sig(1:length(x_phat));
+        end
 
 L_x_phat = length(x_phat);
 vec_t_phat = (0:L_x_phat-1)'/fs;
@@ -87,8 +112,14 @@ vec_beats = [];
 idx_start = 1;
 
 % do davies beat tracking
-idx_beats_davies = detect_beats_davies_standard(x, fs);
-tempo_davies = 60 ./diff(idx_beats_davies/fs);
+try
+    idx_beats_davies = detect_beats_davies_standard(x, fs);
+    tempo_davies = 60 ./diff(idx_beats_davies/fs);
+catch
+    % error. signal was probably too short...
+    idx_beats_davies = [];
+    tempo_davies = [];
+end
 
 % some parameters for the bpm pdf
 sigma_bpm = 10;
@@ -415,7 +446,7 @@ if b_plot
     figure(12);
     plot(60./(diff(vec_beats)/fs));
     
-    y = bleepify(x, vec_beats, fs);
+%     y = bleepify(x, vec_beats, fs);
 end
 
 % prepare the return struct
