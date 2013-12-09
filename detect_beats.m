@@ -161,7 +161,7 @@ for p = 1 : N_blocks
         acf = filtfilt(1/L_filter_smooth * ones(L_filter_smooth, 1), 1, acf);
         
         % determine threshold
-        th = mean(acf) + 2 * std(acf);
+        th = mean(acf) + 1 * std(acf);
         
         if b_plot
             figure(2)
@@ -234,7 +234,7 @@ for p = 1 : N_blocks
     tempo_davies_p_mean = median(tempo_davies_p);
     
     % generate the apriori tempo pdf
-    cur_bpm_candidate = tempo_davies_p_mean/2;
+    cur_bpm_candidate = tempo_davies_p_mean/1;
 %     P_base = 0.002;
     vec_pdf_bpm = zeros(bpm_max-bpm_min+1, 1);
     vec_bpm = (bpm_min:bpm_max)';
