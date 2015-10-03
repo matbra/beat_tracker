@@ -2,15 +2,6 @@ function st_beat_detection_result = detect_beats(x, fs, T_peak_search_region, te
 
 st_beat_detection_result.st_beat_info.sample_pos = [];
 
-% dir_signals = fullfile(dirup(2), 'impulse_noise', 'signals');
-% dir_signals = 'H:\testsignale\mirex\beattrack_train_2006\train';
-
-% filename_input = 'modell_1.wav';
-% filename_input = 'roboter_1.wav';
-% filename_input = 'patsy.wav';
-
-% filename_input = 'train8.wav';
-
 % some global parameters:
 L_block = 1024*8;
 L_feed = L_block/2;
@@ -39,22 +30,14 @@ vec_tooth = hann(L_tooth, 'symmetric');
 b_plot = false;
 b_publish = false;
 
-% load the input signal
-% [x, fs] = wavread(fullfile(dir_signals, filename_input));
+% use the first channel only
 x = x(:,1);
 L_x = length(x);
 
 % create the time vector
 vec_t = (0:L_x-1)' / fs;
 
-% phase transform
-% [mat_X, vec_f, vec_t_block] = spectrogram(x, vec_window, (L_block-L_feed), L_DFT, fs);
-% mat_X = ones(size(mat_X)) .* exp(j * angle(mat_X)); % set all magnitudes to one
-% x_phat = ispectrogram(mat_X);
-
-% TODO: rename variables (other that x_phat) because it's no longer "only"
-% PHAT.
-
+% compute detector signal
 switch(detectorsignal_mode)
     case 'phat'
         [Data,FreqVek,TimeVek] = spectrogram(x,vec_window,(L_block-L_feed),L_DFT,fs,'yaxis');
@@ -88,10 +71,7 @@ end
 
 % now perform first, coarse tempo estimation
 % (with acf analysis)
-
-
 L_block_acf_analysis = floor(T_block_acf_analysis * fs);
-
 
 T_delay_max = 1/bpm_min * 60;
 T_delay_min = 1/bpm_max * 60;
@@ -112,7 +92,6 @@ if vec_L_block(end) < L_delay_max
 end
 
 st_coarse_tempo_information = [];
-% st_refined_tempo_information = [];
 vec_beats = [];
 
 idx_start = 1;
@@ -134,8 +113,6 @@ end
 % some parameters for the bpm pdf
 sigma_bpm = 10;
 
-
-
 for p = 1 : N_blocks
     %idx = (p-1) * vec_L_block(p)+1 : p * vec_L_block(p);
     idx = idx_start : idx_start + vec_L_block(p) - 1;
@@ -144,13 +121,11 @@ for p = 1 : N_blocks
     
     % for debugging...
     x_p = x(idx);
-    %     idx_beats_davies = detect_beats_davies_standard(x_p, fs); % too short
     
     % skip all calculation of rhythmness for the last block
     % -> assume that the last tempo still holds...
     
     if p < N_blocks
-        %     acf = ifft(fft(abs(x_phat_p)).^2);
         acf = xcorr(abs(x_phat_p), abs(x_phat_p), L_delay_max, 'unbiased');
         
         % normalize peak at zero delay to one
@@ -161,7 +136,6 @@ for p = 1 : N_blocks
         acf = acf(L_delay_max + 1 + L_delay_min:2*L_delay_max);
         
         % apply some smoothing
-        
         L_filter_smooth = floor(T_smooth * fs);
         acf = filtfilt(1/L_filter_smooth * ones(L_filter_smooth, 1), 1, acf);
         
@@ -190,7 +164,6 @@ for p = 1 : N_blocks
                 ylim([0.0 0.05]);
                 matlabfrag('beatDetection_acf');
             end
-            
         end
         
         if false
@@ -231,7 +204,6 @@ for p = 1 : N_blocks
     
     % now use the davies beat tracker information to find most probable
     % tempo (delay) candidate
-    
     if b_prior_tempo_estimation
         % determine which beats (of davies output) are within the current block
         vec_b_beats_davies_within_cur_block = idx_beats_davies >= idx(1) & ...
@@ -245,7 +217,6 @@ for p = 1 : N_blocks
         
         % generate the apriori tempo pdf
         cur_bpm_candidate = tempo_davies_p_mean/1;
-        %     P_base = 0.002;
         vec_pdf_bpm = zeros(bpm_max-bpm_min+1, 1);
         vec_bpm = (bpm_min:bpm_max)';
         while cur_bpm_candidate < bpm_max
@@ -298,9 +269,6 @@ for p = 1 : N_blocks
             
             cur_delay = vec_delay(b);
             
-            %             T_tooth = 1e-3; % s
-            
-            
             L_zeros = cur_delay - 2 * L_tooth_half;
             
             % the number of teeth that fit into the selected acf analysis
@@ -349,28 +317,19 @@ for p = 1 : N_blocks
             % refine the first maximum
             if ~isempty(st_regions_above_threshold)
                 [~, idx_max] = max(acf_cyclic(st_regions_above_threshold(1).idx_start:st_regions_above_threshold(1).idx_end));
-                 st_coarse_tempo_information(end).offset(b) = st_regions_above_threshold(1).idx_start + idx_max - 1;
+                st_coarse_tempo_information(end).offset(b) = st_regions_above_threshold(1).idx_start + idx_max - 1;
             else
                 idx_max = 1; % todo: this is evil!
                 st_coarse_tempo_information(end).offset(b) = 0;
             end
-                
-            
-           
             
             % try to refine the tempo estimation by searching for
             % transients in the vicinity of the predicted beats
-            
-            
-            
-            
-            
         end
         
         % now we have collected all possible tempo candidates and their
         % respective beat offsets
         
-        %         T_peak_search_region = 5e-2;
         L_peak_search_region = floor(T_peak_search_region * fs);
         L_peak_search_region_half = floor(L_peak_search_region / 2);
         L_peak_search_region = L_peak_search_region_half * 2 + 1; % is odd!
@@ -410,8 +369,6 @@ for p = 1 : N_blocks
             
         end
         
-        
-        
         % increase the time resolution of the transient position by finding
         % the maximum of the hilbert envelope in the predicted vicinity of
         % the beats...
@@ -440,14 +397,9 @@ for p = 1 : N_blocks
             
             idx_peak = idx_peak + st_coarse_tempo_information(p).vec_delay(temp_idx_fastest); % watch out, only second tempo!
         end
-        
-        
-        
     else
         % there doesn't seem to be some kind of tempo detectable
     end
-    
-    
 end
 
 if b_plot
