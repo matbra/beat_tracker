@@ -23,7 +23,7 @@ T_peak_search_region = 5e-2; % size of the area around detected peaks where tran
 T_tooth = 1e-3; % s - width of the offset-estimation tooths (of the comb vector)
 vec_window = sqrt(hann(L_block, 'periodic'));
 detectorsignal_mode = 'product_1';
-b_prior_tempo_estimation = false;
+b_prior_tempo_estimation = true;
 
 L_tooth = floor(T_tooth * fs);
 L_tooth_half = floor(L_tooth/2);
@@ -317,6 +317,10 @@ for p = 1 : N_blocks
                 th_beat_phase = mean(acf_cyclic) + fac_std * std(acf_cyclic);
                 vec_b_above_threshold = acf_cyclic >= th_beat_phase;
                 fac_std = fac_std * 0.9;
+                
+                if isnan(th_beat_phase)
+                    break;
+                end
             end
             
             if b_plot
@@ -333,9 +337,16 @@ for p = 1 : N_blocks
             st_regions_above_threshold = find_sections(find(vec_b_above_threshold));
             
             % refine the first maximum
-            [~, idx_max] = max(acf_cyclic(st_regions_above_threshold(1).idx_start:st_regions_above_threshold(1).idx_end));
+            if ~isempty(st_regions_above_threshold)
+                [~, idx_max] = max(acf_cyclic(st_regions_above_threshold(1).idx_start:st_regions_above_threshold(1).idx_end));
+                 st_coarse_tempo_information(end).offset(b) = st_regions_above_threshold(1).idx_start + idx_max - 1;
+            else
+                idx_max = 1; % todo: this is evil!
+                st_coarse_tempo_information(end).offset(b) = 0;
+            end
+                
             
-            st_coarse_tempo_information(end).offset(b) = st_regions_above_threshold(1).idx_start + idx_max - 1;
+           
             
             % try to refine the tempo estimation by searching for
             % transients in the vicinity of the predicted beats
